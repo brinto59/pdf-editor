@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PDF Merger &amp; Page Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--text:#1d1d1b;--muted:#6b6a65;--line:#e3e1db;--accent:#d9480f;--accent-h:#b93c0a;--accent-soft:#fdf0e9;--danger:#c92a2a;--ok:#2b8a3e;--thumb:#eceae4;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171716;--card:#222220;--text:#f1efe9;--muted:#9c9a92;--line:#34332f;--accent:#f76707;--accent-h:#ff8a3d;--accent-soft:#33241b;--danger:#ff6b6b;--ok:#51cf66;--thumb:#2d2c29}}
+:root[data-theme="dark"]{--bg:#171716;--card:#222220;--text:#f1efe9;--muted:#9c9a92;--line:#34332f;--accent:#f76707;--accent-h:#ff8a3d;--accent-soft:#33241b;--danger:#ff6b6b;--ok:#51cf66;--thumb:#2d2c29}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+main{max-width:760px;margin:0 auto;padding:32px 16px 56px}
+h1{font-size:1.75rem;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 24px}
+.drop{display:block;border:2px dashed var(--line);background:var(--card);border-radius:16px;padding:40px 20px;text-align:center;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over,.drop:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+.drop svg{width:40px;height:40px;stroke:var(--accent);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.drop strong{display:block;margin-top:8px}
+.drop span{color:var(--muted);font-size:.9rem}
+.drop input{display:none}
+.head{display:flex;justify-content:space-between;align-items:center;margin:28px 0 10px}
+.head h2{font-size:1rem;margin:0}
+.link{background:none;border:0;color:var(--muted);cursor:pointer;font:inherit;font-size:.875rem;text-decoration:underline;padding:0}
+.link:hover{color:var(--danger)}
+.link.ok:hover{color:var(--accent)}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+li.target{border-color:var(--accent)}
+.row{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px}
+.row.dragging{opacity:.4}
+.grip{cursor:grab;color:var(--muted);user-select:none;font-size:1.2rem;line-height:1}
+.num{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.75rem;font-weight:700;display:grid;place-items:center;flex:none}
+.info{flex:1;min-width:0}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.meta{font-size:.8rem;color:var(--muted)}
+.meta.err{color:var(--danger)}
+.btns{display:flex;gap:2px;flex:none;align-items:center}
+.ib{min-width:34px;height:34px;border:0;background:none;border-radius:8px;cursor:pointer;color:var(--muted);font:inherit;font-size:1rem;display:grid;place-items:center;padding:0 6px}
+.ib:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
+.ib.rm:hover:not(:disabled){color:var(--danger);background:none}
+.ib.tog{font-size:.8rem;font-weight:600;color:var(--accent);background:var(--accent-soft)}
+.ib:disabled{opacity:.3;cursor:default}
+.editor{border-top:1px solid var(--line);padding:12px;background:var(--bg)}
+.etool{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);margin-bottom:10px;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.pg{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;text-align:center}
+.pg.t{border-color:var(--accent)}
+.pg.del .th{opacity:.25}
+.th{height:140px;background:var(--thumb);border-radius:6px;display:grid;place-items:center;overflow:hidden;position:relative;color:var(--muted);font-size:1.4rem;font-weight:700}
+.th img{max-width:100%;max-height:100%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.th .x{position:absolute;font-size:.7rem;font-weight:700;color:var(--danger);background:var(--card);padding:2px 6px;border-radius:6px}
+.pl{font-size:.75rem;color:var(--muted);margin:4px 0 2px}
+.pb{display:flex;justify-content:center;gap:0}
+.pb .ib{min-width:24px;height:28px;font-size:.85rem;padding:0 2px}
+.primary{width:100%;margin-top:20px;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:inherit;font-weight:600;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+.primary:hover:not(:disabled){background:var(--accent-h)}
+.primary:disabled{opacity:.5;cursor:not-allowed}
+.spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.result{margin-top:20px;padding:18px;border:1px solid var(--ok);border-radius:12px;background:var(--card);text-align:center}
+.result p{margin:0 0 12px;color:var(--ok);font-weight:600}
+.result .primary{margin-top:0;background:var(--ok)}
+.result a.primary{text-decoration:none}
+.note{margin-top:10px;font-size:.85rem;color:var(--muted);text-align:center}
+.note.err{color:var(--danger)}
+.priv{margin-top:32px;text-align:center;font-size:.8rem;color:var(--muted)}
+.bd{position:absolute;left:4px;top:4px;font-size:.65rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:6px}
+.card{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;transition:box-shadow .3s}
+.card.flash{box-shadow:0 0 0 3px var(--accent)}
+.card h2{font-size:1rem;margin:0 0 4px}.card h2 small{font-weight:400;color:var(--muted)}
+.help{margin:0 0 12px;font-size:.85rem;color:var(--muted)}
+.sdrop{display:block;border:1.5px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer;color:var(--muted);font-size:.9rem}
+.sdrop:hover,.sdrop.over,.sdrop:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+.sdrop input{display:none}
+.sbody{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.sprev{width:200px;height:90px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;background:conic-gradient(#ccc 25%,#fff 0 50%,#ccc 0 75%,#fff 0) 0 0/14px 14px}
+.sprev img{max-width:100%;max-height:100%}
+.sctl{flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px;font-size:.85rem}
+.sctl label{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.sctl input[type=range]{flex:1;accent-color:var(--accent)}
+.sctl select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.srow{display:flex;gap:14px}
+#modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.mbar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+#mTitle{flex:1;font-size:.85rem;font-weight:600;min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mb{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.mb.p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.mb:disabled{opacity:.4;cursor:default}
+.mscroll{flex:1;overflow:auto;padding:16px;display:flex}
+.stage{position:relative;margin:auto;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);flex:none}
+.stage canvas{display:block}
+.sb{position:absolute;border:1.5px dashed var(--accent);cursor:move;touch-action:none;background:rgba(217,72,15,.06)}
+.sb img{width:100%;height:100%;pointer-events:none;display:block}
+.rh{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid #fff;cursor:nwse-resize;touch-action:none}
+.sx{position:absolute;right:-10px;top:-10px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:#fff;font-size:.8rem;line-height:20px;text-align:center;cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>PDF Merger &amp; Page Editor</h1>
+  <p class="sub">Merge PDFs, edit pages, and add your signature. Everything stays on your device.</p>
+
+  <label class="drop" id="drop" tabindex="0">
+    <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+    <strong>Drop PDF files here</strong>
+    <span>or click to browse</span>
+    <input type="file" id="picker" accept="application/pdf,.pdf" multiple>
+  </label>
+  <div class="note err" id="addErr" hidden></div>
+
+  <section class="card" id="sigCard">
+    <h2>Signature <small>(optional)</small></h2>
+    <p class="help">Upload a photo or scan of your signature. The background is removed automatically. Then use ✍ on a page under “Edit pages” to place it.</p>
+    <label class="sdrop" id="sigDrop" tabindex="0">Click or drop a signature image (PNG, JPG)<input type="file" id="sigPicker" accept="image/*"></label>
+    <div class="sbody" id="sigBody" hidden>
+      <div class="sprev"><img id="sigImg" alt="Processed signature"></div>
+      <div class="sctl">
+        <label>Background removal <input type="range" id="sigStr" min="0" max="100" value="45"></label>
+        <label>Ink colour <select id="sigInk"><option value="original">Original</option><option value="black">Black</option><option value="blue">Blue</option></select></label>
+        <div class="srow"><button class="link ok" id="sigReplace">Replace image</button><button class="link" id="sigRemove">Remove</button></div>
+      </div>
+    </div>
+    <div class="note err" id="sigErr" hidden></div>
+  </section>
+
+  <div id="listWrap" hidden>
+    <div class="head"><h2 id="count"></h2><button class="link" id="clear">Clear all</button></div>
+    <ul id="list"></ul>
+    <button class="primary" id="merge"><span id="mergeLabel">Merge PDFs</span></button>
+    <div class="note" id="hint"></div>
+    <div class="note err" id="mergeErr" hidden></div>
+  </div>
+
+  <div class="result" id="result" hidden>
+    <p id="resultMsg"></p>
+    <button class="primary" id="dl" hidden>Download merged.pdf</button>
+    <a class="primary" id="dlLink" download="merged.pdf" hidden>Download merged.pdf</a>
+  </div>
+
+  <div class="priv">Runs entirely client-side with pdf-lib and pdf.js.</div>
+</main>
+<div id="modal" hidden>
+  <div class="mbar"><button class="mb" id="mPrev" aria-label="Previous page">‹</button><button class="mb" id="mNext" aria-label="Next page">›</button><span id="mTitle"></span><button class="mb" id="mAdd">+ Add signature</button><button class="mb p" id="mDone">Done</button></div>
+  <div class="mscroll"><div class="stage" id="stage"><canvas id="mCanvas"></canvas></div></div>
+</div>
+
+<script>
+(function(){
+  var files=[], nextId=1, merging=false, mergedBytes=null, blobUrl=null;
+  var dragFile=null, dragPage=null, queue=Promise.resolve(), raf=0, sig=null, sigSrc=null, M=null, mtoken=0, mTask=null;
+  var $=function(id){return document.getElementById(id)};
+  var drop=$('drop'), picker=$('picker'), list=$('list'), wrap=$('listWrap');
+  var hasPdfjs=!!window.pdfjsLib;
+  if(hasPdfjs){try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}catch(e){}}
+
+  function fmt(b){return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'}
+  function showErr(el,msg){el.textContent=msg;el.hidden=!msg}
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+  function sched(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
+  function internal(){return dragFile!=null||dragPage!=null}
+  function resetResult(){mergedBytes=null;if(blobUrl){URL.revokeObjectURL(blobUrl);blobUrl=null}$('result').hidden=true}
+  function kept(f){return f.pages?f.pages.filter(function(p){return !p.del}).length:0}
+  function mv(arr,i,j){if(j<0||j>=arr.length||i===j)return;arr.splice(j,0,arr.splice(i,1)[0]);resetResult();render()}
+
+  async function addFiles(fileList){
+    showErr($('addErr'),'');
+    var arr=Array.prototype.slice.call(fileList);
+    var pdfs=arr.filter(function(f){return f.type==='application/pdf'||/\.pdf$/i.test(f.name)});
+    if(pdfs.length<arr.length) showErr($('addErr'),(arr.length-pdfs.length)+' non-PDF file(s) skipped.');
+    if(!pdfs.length) return;
+    resetResult();
+    var first=files.length===0;
+    var entries=pdfs.map(function(f,i){return {id:nextId++,file:f,pages:null,error:null,open:first&&i===0&&pdfs.length===1}});
+    files=files.concat(entries); render();
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i];
+      try{
+        e.buf=await e.file.arrayBuffer();
+        e.src=await PDFLib.PDFDocument.load(e.buf);
+        e.pages=e.src.getPageIndices().map(function(n){return {id:nextId++,src:n,rot:0,del:false}});
+      }catch(err){
+        e.error=/encrypt/i.test(String(err&&err.message))?'Password-protected':'Could not read this PDF';
+      }
+      render();
+    }
+  }
+
+  function loadThumb(f,p){
+    if(p.thumb||p.loading||p.fail||!hasPdfjs) return;
+    p.loading=true;
+    queue=queue.then(async function(){
+      try{
+        f.doc=f.doc||pdfjsLib.getDocument({data:new Uint8Array(f.buf.slice(0))}).promise;
+        var d=await f.doc, pg=await d.getPage(p.src+1), v0=pg.getViewport({scale:1});
+        var vp=pg.getViewport({scale:Math.min(200/v0.width,260/v0.height)});
+        var c=document.createElement('canvas'); c.width=Math.ceil(vp.width); c.height=Math.ceil(vp.height);
+        await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+        p.thumb=c.toDataURL('image/jpeg',.8);
+      }catch(e){p.fail=true}
+      p.loading=false; sched();
+    });
+  }
+  var io=window.IntersectionObserver?new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);loadThumb(e.target._f,e.target._p)}});
+  },{rootMargin:'300px'}):null;
+
+  function btn(txt,label,fn,dis,cls){
+    var b=el('button','ib'+(cls?' '+cls:''),txt); b.title=label; b.setAttribute('aria-label',label); b.disabled=!!dis; b.addEventListener('click',fn); return b;
+  }
+
+  function buildEditor(f){
+    var box=el('div','editor');
+    var nDel=f.pages.length-kept(f);
+    var tool=el('div','etool');
+    tool.appendChild(el('span','', kept(f)+' of '+f.pages.length+' pages kept · drag pages or use ◀ ▶ to reorder'));
+    if(nDel){var rs=el('button','link ok','Restore all deleted');rs.onclick=function(){f.pages.forEach(function(p){p.del=false});resetResult();render()};tool.appendChild(rs)}
+    box.appendChild(tool);
+    var grid=el('div','grid');
+    f.pages.forEach(function(p,i){
+      var cell=el('div','pg'+(p.del?' del':'')); cell.draggable=true;
+      var th=el('div','th');
+      if(p.thumb){
+        var img=new Image(); img.src=p.thumb; img.alt='Page '+(p.src+1); img.draggable=false;
+        img.style.transform='rotate('+p.rot+'deg)'+(p.rot%180?' scale(.72)':'');
+        th.appendChild(img);
+      }else{
+        th.textContent=p.src+1;
+        if(io){th._f=f;th._p=p;io.observe(th)}else loadThumb(f,p);
+      }
+      if(p.del) th.appendChild(el('span','x','DELETED'));
+      if(p.sigs&&p.sigs.length) th.appendChild(el('span','bd','✍ '+p.sigs.length));
+      cell.appendChild(th);
+      cell.appendChild(el('div','pl','Page '+(p.src+1)+(p.rot?' · '+p.rot+'°':'')));
+      var pb=el('div','pb');
+      pb.appendChild(btn('◀','Move earlier',function(){mv(f.pages,i,i-1)},i===0));
+      pb.appendChild(btn('↻','Rotate 90°',function(){p.rot=(p.rot+90)%360;resetResult();render()},p.del));
+      pb.appendChild(btn('✍','Place signature',function(){openPlace(f,p)},p.del));
+      if(p.del) pb.appendChild(btn('↺','Restore page',function(){p.del=false;resetResult();render()}));
+      else pb.appendChild(btn('✕','Delete page',function(){p.del=true;resetResult();render()},false,'rm'));
+      pb.appendChild(btn('▶','Move later',function(){mv(f.pages,i,i+1)},i===f.pages.length-1));
+      cell.appendChild(pb);
+      cell.addEventListener('dragstart',function(ev){ev.stopPropagation();dragPage={fid:f.id,pid:p.id};try{ev.dataTransfer.setData('text/plain','p')}catch(_){}ev.dataTransfer.effectAllowed='move'});
+      cell.addEventListener('dragend',function(){dragPage=null;clearT()});
+      cell.addEventListener('dragover',function(ev){if(!dragPage||dragPage.fid!==f.id)return;ev.preventDefault();ev.stopPropagation();clearT();cell.classList.add('t')});
+      cell.addEventListener('drop',function(ev){
+        if(!dragPage||dragPage.fid!==f.id)return;
+        ev.preventDefault();ev.stopPropagation();
+        var from=f.pages.findIndex(function(x){return x.id===dragPage.pid});
+        dragPage=null;mv(f.pages,from,i);
+      });
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+    return box;
+  }
+  function clearT(){Array.prototype.forEach.call(document.querySelectorAll('.t,.target'),function(c){c.classList.remove('t','target')})}
+
+  function render(){
+    wrap.hidden=!files.length;
+    var totalKept=files.reduce(function(n,f){return n+kept(f)},0);
+    var usable=files.filter(function(f){return kept(f)>0}).length;
+    $('count').textContent=files.length+' file'+(files.length===1?'':'s')+' · '+totalKept+' page'+(totalKept===1?'':'s')+' to export';
+    list.innerHTML='';
+    files.forEach(function(f,i){
+      var li=el('li'); li.dataset.id=f.id;
+      var row=el('div','row'); row.draggable=true;
+      var grip=el('span','grip','⠿'); grip.title='Drag to reorder files';
+      var info=el('div','info');
+      var name=el('div','name',f.file.name); name.title=f.file.name;
+      var meta=el('div','meta'+(f.error?' err':''));
+      meta.textContent=f.error?f.error+' · will be skipped':fmt(f.file.size)+(f.pages?' · '+kept(f)+'/'+f.pages.length+' pages':' · reading…');
+      info.appendChild(name); info.appendChild(meta);
+      var btns=el('div','btns');
+      if(f.pages) btns.appendChild(btn(f.open?'Hide pages':'Edit pages','Preview and edit pages',function(){f.open=!f.open;render()},false,'tog'));
+      btns.appendChild(btn('↑','Move file up',function(){mv(files,i,i-1)},i===0));
+      btns.appendChild(btn('↓','Move file down',function(){mv(files,i,i+1)},i===files.length-1));
+      btns.appendChild(btn('✕','Remove file',function(){files.splice(i,1);resetResult();render()},false,'rm'));
+      row.appendChild(grip); row.appendChild(el('span','num',i+1)); row.appendChild(info); row.appendChild(btns);
+      row.addEventListener('dragstart',function(ev){dragFile=f.id;row.classList.add('dragging');ev.dataTransfer.effectAllowed='move';try{ev.dataTransfer.setData('text/plain','f')}catch(_){}});
+      row.addEventListener('dragend',function(){dragFile=null;row.classList.remove('dragging');clearT()});
+      row.addEventListener('dragover',function(ev){if(dragFile==null)return;ev.preventDefault();clearT();li.classList.add('target')});
+      row.addEventListener('drop',function(ev){if(dragFile==null)return;ev.preventDefault();ev.stopPropagation();var from=files.findIndex(function(x){return x.id===dragFile});dragFile=null;mv(files,from,i)});
+      li.appendChild(row);
+      if(f.open&&f.pages) li.appendChild(buildEditor(f));
+      list.appendChild(li);
+    });
+    var b=$('merge'); b.disabled=merging||totalKept<1;
+    $('mergeLabel').textContent=merging?'Processing…':(usable>1?'Merge PDFs':'Export PDF');
+    var sp=b.querySelector('.spin');
+    if(merging&&!sp){sp=el('span','spin');b.insertBefore(sp,b.firstChild)}
+    if(!merging&&sp) sp.remove();
+    $('hint').textContent=totalKept<1?'No pages left to export.':'Use “Edit pages” to preview, delete, rotate, reorder or sign (✍) pages.'+(hasPdfjs?'':' (Thumbnails unavailable.)');
+  }
+
+  async function mergeAll(){
+    if(merging) return;
+    showErr($('mergeErr'),''); resetResult();
+    merging=true; render();
+    try{
+      await new Promise(function(r){setTimeout(r,30)});
+      var out=await PDFLib.PDFDocument.create(), skipped=0, total=0, emb=null, nSig=0;
+      if(sig&&files.some(function(f){return f.pages&&f.pages.some(function(p){return !p.del&&p.sigs&&p.sigs.length})})) emb=await out.embedPng(sig.dataURL);
+      for(var i=0;i<files.length;i++){
+        var f=files[i]; if(f.error||!f.pages){skipped++;continue}
+        var ks=f.pages.filter(function(p){return !p.del}); if(!ks.length) continue;
+        try{
+          var cps=await out.copyPages(f.src,ks.map(function(p){return p.src}));
+          cps.forEach(function(pg,k){
+            var p=ks[k], intr=pg.getRotation().angle;
+            if(p.rot) pg.setRotation(PDFLib.degrees((intr+p.rot)%360));
+            out.addPage(pg);
+            if(emb&&p.sigs&&p.sigs.length){
+              var cb=pg.getCropBox(), R=((intr%360)+360)%360; if(R%90) R=0;
+              p.sigs.forEach(function(sg){
+                var t=sigToUser(cb,R,sg,sig.aspect);
+                pg.drawImage(emb,{x:t.x,y:t.y,width:t.w,height:t.h,rotate:PDFLib.degrees(t.rot)}); nSig++;
+              });
+            }
+          });
+          total+=cps.length;
+        }catch(err){skipped++}
+      }
+      if(!total) throw new Error('No readable pages found.');
+      mergedBytes=await out.save();
+      $('resultMsg').textContent='Done! '+total+' page'+(total===1?'':'s')+' · '+fmt(mergedBytes.length)+(nSig?' · '+nSig+' signature'+(nSig===1?'':'s')+' placed':'')+(skipped?' · '+skipped+' file(s) skipped':'');
+      blobUrl=URL.createObjectURL(new Blob([mergedBytes],{type:'application/pdf'}));
+      $('dlLink').href=blobUrl;
+      var viaCap=!!window.__dlCap;
+      $('dl').hidden=!viaCap; $('dlLink').hidden=viaCap;
+      $('result').hidden=false;
+      $('result').scrollIntoView({behavior:'smooth',block:'nearest'});
+    }catch(err){
+      showErr($('mergeErr'),'Failed: '+(err&&err.message||err));
+    }finally{merging=false;render()}
+  }
+
+  // ---------- Signature: extraction ----------
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+  function median(a){a.sort(function(x,y){return x-y});return a[a.length>>1]||255}
+  async function loadSigFile(file){
+    showErr($('sigErr'),'');
+    if(!file||!/^image\//.test(file.type)){showErr($('sigErr'),'Please choose an image file.');return}
+    try{
+      var url=URL.createObjectURL(file), img=new Image();
+      await new Promise(function(res,rej){img.onload=res;img.onerror=rej;img.src=url});
+      URL.revokeObjectURL(url);
+      var k=Math.min(1,1400/Math.max(img.naturalWidth,img.naturalHeight)), w=Math.round(img.naturalWidth*k), h=Math.round(img.naturalHeight*k);
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      var ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,w,h);
+      var data=ctx.getImageData(0,0,w,h), d=data.data, tr=0, i;
+      for(i=3;i<d.length;i+=4) if(d[i]<250) tr++;
+      var alpha=tr/(w*h)>0.02, R=[],G=[],B=[], ring=Math.max(2,Math.round(Math.min(w,h)*0.02));
+      for(var y=0;y<h;y+=2) for(var x=0;x<w;x+=2){
+        if(x<ring||y<ring||x>=w-ring||y>=h-ring){i=(y*w+x)*4;R.push(d[i]);G.push(d[i+1]);B.push(d[i+2])}
+      }
+      var bg=[median(R),median(G),median(B)];
+      sigSrc={w:w,h:h,data:data,alpha:alpha,bg:bg,bgMax:Math.max(1,bg[0],bg[1],bg[2])};
+      $('sigStr').disabled=alpha;
+      $('sigDrop').hidden=true; $('sigBody').hidden=false;
+      buildSig();
+    }catch(e){showErr($('sigErr'),'Could not read that image.')}
+  }
+  function buildSig(){
+    if(!sigSrc) return;
+    var st=+$('sigStr').value/100, kind=$('sigInk').value;
+    var ink=kind==='black'?[20,20,28]:kind==='blue'?[20,52,170]:null;
+    var w=sigSrc.w,h=sigSrc.h,src=sigSrc.data.data,o=new Uint8ClampedArray(src.length),bg=sigSrc.bg;
+    var lo=0.03+st*0.32, hi=lo+0.14, minX=w,minY=h,maxX=-1,maxY=-1;
+    for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+      var i=(y*w+x)*4, r=src[i],g=src[i+1],b=src[i+2],a;
+      if(sigSrc.alpha) a=src[i+3]/255;
+      else{
+        var dd=Math.max(0,bg[0]-r,bg[1]-g,bg[2]-b)/sigSrc.bgMax;
+        a=dd<=lo?0:dd>=hi?1:(dd-lo)/(hi-lo); a=a*a*(3-2*a);
+        if(a>0.02&&!ink){var q=1-a;r=clamp((r-bg[0]*q)/a,0,255);g=clamp((g-bg[1]*q)/a,0,255);b=clamp((b-bg[2]*q)/a,0,255)}
+      }
+      if(ink){r=ink[0];g=ink[1];b=ink[2]}
+      o[i]=r;o[i+1]=g;o[i+2]=b;o[i+3]=Math.round(a*255);
+      if(a>0.04){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}
+    }
+    if(maxX<0){showErr($('sigErr'),'No signature found. Try lowering the background removal.');return}
+    showErr($('sigErr'),'');
+    var full=document.createElement('canvas'); full.width=w; full.height=h;
+    full.getContext('2d').putImageData(new ImageData(o,w,h),0,0);
+    var pad=6; minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);maxX=Math.min(w-1,maxX+pad);maxY=Math.min(h-1,maxY+pad);
+    var cw=maxX-minX+1, ch=maxY-minY+1, out=document.createElement('canvas'); out.width=cw; out.height=ch;
+    out.getContext('2d').drawImage(full,minX,minY,cw,ch,0,0,cw,ch);
+    sig={dataURL:out.toDataURL('image/png'),aspect:ch/cw};
+    $('sigImg').src=sig.dataURL; resetResult();
+    if(M) refreshBoxes();
+  }
+  function removeSig(){
+    sig=null; sigSrc=null; closePlace();
+    files.forEach(function(f){if(f.pages)f.pages.forEach(function(p){p.sigs=[]})});
+    $('sigBody').hidden=true; $('sigDrop').hidden=false; showErr($('sigErr'),''); resetResult(); render();
+  }
+
+  // ---------- Signature: placement ----------
+  function sigToUser(cb,R,s,aspect){
+    var W=cb.width,H=cb.height,VW=R%180?H:W,VH=R%180?W:H;
+    var vw=s.fw*VW,vh=vw*aspect,vx=s.fx*VW,vy=s.fy*VH;
+    if(R===90)  return {x:cb.x+vy+vh,y:cb.y+vx,rot:90,w:vw,h:vh};
+    if(R===180) return {x:cb.x+W-vx,y:cb.y+vy+vh,rot:180,w:vw,h:vh};
+    if(R===270) return {x:cb.x+W-vy-vh,y:cb.y+H-vx,rot:270,w:vw,h:vh};
+    return {x:cb.x+vx,y:cb.y+H-vy-vh,rot:0,w:vw,h:vh};
+  }
+  function openPlace(f,p){
+    if(!sig){var c=$('sigCard');c.scrollIntoView({behavior:'smooth',block:'center'});c.classList.add('flash');setTimeout(function(){c.classList.remove('flash')},1400);return}
+    if(!hasPdfjs){showErr($('mergeErr'),'Page preview is unavailable, so signatures cannot be placed.');return}
+    M={f:f,p:p}; $('modal').hidden=false; document.body.style.overflow='hidden'; showPage();
+  }
+  function closePlace(){
+    if(!M&&$('modal').hidden) return;
+    mtoken++; M=null; $('modal').hidden=true; document.body.style.overflow=''; render();
+  }
+  async function showPage(){
+    var t=++mtoken, f=M.f, p=M.p, st=$('stage'), c=$('mCanvas');
+    var pages=f.pages.filter(function(x){return !x.del}), idx=pages.indexOf(p);
+    $('mTitle').textContent=f.file.name+' · page '+(p.src+1)+' ('+(idx+1)+'/'+pages.length+')';
+    $('mPrev').disabled=idx<=0; $('mNext').disabled=idx>=pages.length-1;
+    Array.prototype.forEach.call(st.querySelectorAll('.sb'),function(n){n.remove()});
+    if(mTask){try{mTask.cancel()}catch(e){}}
+    try{
+      f.doc=f.doc||pdfjsLib.getDocument({data:new Uint8Array(f.buf.slice(0))}).promise;
+      var d=await f.doc, pg=await d.getPage(p.src+1); if(t!==mtoken) return;
+      var v0=pg.getViewport({scale:1}), W=Math.min(window.innerWidth-32,680), sc=W/v0.width, dpr=Math.min(window.devicePixelRatio||1,2);
+      var vp=pg.getViewport({scale:sc*dpr});
+      c.width=Math.ceil(vp.width); c.height=Math.ceil(vp.height); c.style.width=W+'px'; c.style.height=Math.round(v0.height*sc)+'px';
+      mTask=pg.render({canvasContext:c.getContext('2d'),viewport:vp}); await mTask.promise;
+      if(t!==mtoken) return;
+      refreshBoxes();
+    }catch(e){if(t===mtoken) showErr($('mergeErr'),'Could not render this page for signing.')}
+  }
+  function refreshBoxes(){
+    var st=$('stage');
+    Array.prototype.forEach.call(st.querySelectorAll('.sb'),function(n){n.remove()});
+    if(M&&sig) (M.p.sigs||[]).forEach(function(s){st.appendChild(mkBox(s))});
+  }
+  function mkBox(s){
+    var st=$('stage'), b=el('div','sb'), im=new Image(), rh=el('div','rh'), x=el('div','sx','×');
+    im.src=sig.dataURL; im.draggable=false;
+    b.appendChild(im); b.appendChild(rh); b.appendChild(x);
+    function fh(){return s.fw*sig.aspect*st.clientWidth/st.clientHeight}
+    function place(){b.style.left=s.fx*100+'%';b.style.top=s.fy*100+'%';b.style.width=s.fw*100+'%';b.style.height=fh()*100+'%'}
+    function track(node,ev,onMove){
+      ev.preventDefault();ev.stopPropagation();
+      var sx=ev.clientX,sy=ev.clientY; node.setPointerCapture(ev.pointerId);
+      function mvh(e){onMove((e.clientX-sx)/st.clientWidth,(e.clientY-sy)/st.clientHeight)}
+      function up(){node.removeEventListener('pointermove',mvh);node.removeEventListener('pointerup',up);node.removeEventListener('pointercancel',up);resetResult()}
+      node.addEventListener('pointermove',mvh);node.addEventListener('pointerup',up);node.addEventListener('pointercancel',up);
+    }
+    b.addEventListener('pointerdown',function(ev){
+      var ox=s.fx,oy=s.fy;
+      track(b,ev,function(dx,dy){s.fx=clamp(ox+dx,0,1-s.fw);s.fy=clamp(oy+dy,0,Math.max(0,1-fh()));place()});
+    });
+    rh.addEventListener('pointerdown',function(ev){
+      var ow=s.fw;
+      track(rh,ev,function(dx){
+        var maxW=Math.min(1-s.fx,(1-s.fy)*st.clientHeight/(sig.aspect*st.clientWidth));
+        s.fw=clamp(ow+dx,0.04,maxW);place();
+      });
+    });
+    x.addEventListener('pointerdown',function(e){e.stopPropagation()});
+    x.addEventListener('click',function(){var a=M.p.sigs;a.splice(a.indexOf(s),1);b.remove();resetResult()});
+    place(); return b;
+  }
+  function stepPage(dir){
+    var pages=M.f.pages.filter(function(x){return !x.del}), i=pages.indexOf(M.p)+dir;
+    if(i>=0&&i<pages.length){M.p=pages[i];showPage()}
+  }
+  $('mPrev').onclick=function(){stepPage(-1)}; $('mNext').onclick=function(){stepPage(1)};
+  $('mDone').onclick=closePlace;
+  $('mAdd').onclick=function(){
+    if(!M||!sig) return;
+    var a=(M.p.sigs=M.p.sigs||[]), n=a.length%4;
+    a.push({id:nextId++,fx:0.3+n*0.03,fy:0.65+n*0.03,fw:0.3}); resetResult(); refreshBoxes();
+  };
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&M)closePlace()});
+  $('sigPicker').addEventListener('change',function(){loadSigFile(this.files[0]);this.value=''});
+  $('sigStr').addEventListener('input',buildSig); $('sigInk').addEventListener('change',buildSig);
+  $('sigReplace').onclick=function(){$('sigPicker').click()}; $('sigRemove').onclick=removeSig;
+  var sd=$('sigDrop');
+  sd.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();$('sigPicker').click()}});
+  ['dragenter','dragover'].forEach(function(t){sd.addEventListener(t,function(e){e.preventDefault();sd.classList.add('over')})});
+  ['dragleave','drop'].forEach(function(t){sd.addEventListener(t,function(){sd.classList.remove('over')})});
+  sd.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files.length)loadSigFile(e.dataTransfer.files[0])});
+
+  $('dl').addEventListener('click',async function(){
+    if(!mergedBytes||!window.__dlCap) return;
+    try{await window.__dlCap.save({filename:'merged.pdf',data:new Blob([mergedBytes],{type:'application/pdf'})})}
+    catch(e){if(e&&e.code!=='declined')showErr($('mergeErr'),'Download unavailable: '+(e.message||e.code))}
+  });
+  try{
+    if(window.claude&&window.claude.use) window.claude.use('downloads').then(function(d){
+      if(d){window.__dlCap=d;if(mergedBytes){$('dl').hidden=false;$('dlLink').hidden=true}}
+    }).catch(function(){});
+  }catch(e){}
+
+  picker.addEventListener('change',function(){addFiles(picker.files);picker.value=''});
+  drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();picker.click()}});
+  ['dragenter','dragover'].forEach(function(t){drop.addEventListener(t,function(e){if(internal())return;e.preventDefault();drop.classList.add('over')})});
+  ['dragleave','drop'].forEach(function(t){drop.addEventListener(t,function(){drop.classList.remove('over')})});
+  drop.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer&&e.dataTransfer.files.length)addFiles(e.dataTransfer.files)});
+  window.addEventListener('dragover',function(e){e.preventDefault()});
+  window.addEventListener('drop',function(e){e.preventDefault()});
+  $('clear').addEventListener('click',function(){files=[];resetResult();showErr($('mergeErr'),'');render()});
+  $('merge').addEventListener('click',mergeAll);
+  render();
+})();
+</script>
+</body>
+</html>
